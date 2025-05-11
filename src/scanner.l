@@ -1,3 +1,6 @@
+/* Tauha Imran, 22i-1239 */
+/* Hussain Ali, 22i-0902 */
+
 %{
 #include "parser.tab.h"
 #include <string.h>
