@@ -9,10 +9,10 @@ FLEX = flex
 all: json2relcsv
 
 json2relcsv: lex.yy.o parser.tab.o ast.o csv.o main.o
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) -o $@ $^ -lfl
 
 lex.yy.c: scanner.l parser.tab.h
-	$(FLEX) scanner.l
+	$(FLEX) --header-file=lex.yy.h scanner.l
 
 parser.tab.c parser.tab.h: parser.y
 	$(BISON) -d parser.y
@@ -21,4 +21,4 @@ parser.tab.c parser.tab.h: parser.y
 	$(CC) $(CFLAGS) -c $<
 
 clean:
-	rm -f *.o lex.yy.c parser.tab.c parser.tab.h json2relcsv
+	rm -f *.o lex.yy.c lex.yy.h parser.tab.c parser.tab.h json2relcsv

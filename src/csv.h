@@ -30,5 +30,6 @@ void process_array(struct ast_node *node, struct table *parent, const char *tabl
 void process_object(struct ast_node *node, struct table *parent, const char *table_name, int parent_id, const char *out_dir);
 void process_ast(struct ast_node *node, const char *out_dir);
 void free_tables(void);
+void report_error(const char *msg, int line, int col, const char *context);
 
 #endif

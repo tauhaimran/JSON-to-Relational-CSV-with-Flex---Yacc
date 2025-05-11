@@ -42,5 +42,6 @@ struct ast_node *append_pair(struct ast_node *pair, struct ast_node *next);
 struct ast_node *append_element(struct ast_node *element, struct ast_node *next);
 void print_ast(struct ast_node *node, int indent);
 void free_ast(struct ast_node *node);
+void cleanup(void);
 
 #endif

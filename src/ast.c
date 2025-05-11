@@ -5,13 +5,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "csv.h"
+
+extern struct ast_node *root;
+void report_error(const char *msg, int line, int col, const char *context);
 
 /* Create an object node */
 struct ast_node *create_object_node(struct ast_node *pairs) {
     struct ast_node *node = malloc(sizeof(struct ast_node));
     if (!node) {
-        fprintf(stderr, "Error: Memory allocation failed\n");
-        exit(1);
+        report_error("Memory allocation failed", 0, 0, NULL);
     }
     node->type = NODE_OBJECT;
     node->data.object.pairs = pairs;
@@ -23,8 +26,7 @@ struct ast_node *create_object_node(struct ast_node *pairs) {
 struct ast_node *create_array_node(struct ast_node *elements) {
     struct ast_node *node = malloc(sizeof(struct ast_node));
     if (!node) {
-        fprintf(stderr, "Error: Memory allocation failed\n");
-        exit(1);
+        report_error("Memory allocation failed", 0, 0, NULL);
     }
     node->type = NODE_ARRAY;
     node->data.array.elements = elements;
@@ -36,8 +38,7 @@ struct ast_node *create_array_node(struct ast_node *elements) {
 struct ast_node *create_string_node(char *value) {
     struct ast_node *node = malloc(sizeof(struct ast_node));
     if (!node) {
-        fprintf(stderr, "Error: Memory allocation failed\n");
-        exit(1);
+        report_error("Memory allocation failed", 0, 0, NULL);
     }
     node->type = NODE_STRING;
     node->data.string = value; /* Parser allocates, we take ownership */
@@ -49,8 +50,7 @@ struct ast_node *create_string_node(char *value) {
 struct ast_node *create_number_node(char *value) {
     struct ast_node *node = malloc(sizeof(struct ast_node));
     if (!node) {
-        fprintf(stderr, "Error: Memory allocation failed\n");
-        exit(1);
+        report_error("Memory allocation failed", 0, 0, NULL);
     }
     node->type = NODE_NUMBER;
     node->data.number = value; /* Parser allocates, we take ownership */
@@ -62,8 +62,7 @@ struct ast_node *create_number_node(char *value) {
 struct ast_node *create_bool_node(char *value) {
     struct ast_node *node = malloc(sizeof(struct ast_node));
     if (!node) {
-        fprintf(stderr, "Error: Memory allocation failed\n");
-        exit(1);
+        report_error("Memory allocation failed", 0, 0, NULL);
     }
     node->type = NODE_BOOL;
     node->data.boolean = value; /* Parser allocates, we take ownership */
@@ -75,8 +74,7 @@ struct ast_node *create_bool_node(char *value) {
 struct ast_node *create_null_node(char *value) {
     struct ast_node *node = malloc(sizeof(struct ast_node));
     if (!node) {
-        fprintf(stderr, "Error: Memory allocation failed\n");
-        exit(1);
+        report_error("Memory allocation failed", 0, 0, NULL);
     }
     node->type = NODE_NULL;
     node->data.null = value; /* Parser allocates, we take ownership */
@@ -88,8 +86,7 @@ struct ast_node *create_null_node(char *value) {
 struct ast_node *create_pair_node(char *key, struct ast_node *value) {
     struct ast_node *node = malloc(sizeof(struct ast_node));
     if (!node) {
-        fprintf(stderr, "Error: Memory allocation failed\n");
-        exit(1);
+        report_error("Memory allocation failed", 0, 0, NULL);
     }
     node->type = NODE_PAIR;
     node->data.pair.key = key; /* Parser allocates, we take ownership */
@@ -186,4 +183,13 @@ void free_ast(struct ast_node *node) {
 
     /* Free the node itself */
     free(node);
+}
+
+/* Clean up global resources */
+void cleanup(void) {
+    if (root) {
+        free_ast(root);
+        root = NULL;
+    }
+    free_tables();
 }

@@ -5,18 +5,37 @@
 #include <stdlib.h>
 #include <string.h>
 #include "csv.h"
+#include "ast.h"
 
 /* Global list of tables */
 static struct table *tables = NULL;
 
+/* Report an error and exit */
+void report_error(const char *msg, int line, int col, const char *context) {
+    if (line > 0 && col > 0) {
+        if (context && *context) {
+            fprintf(stderr, "Error: %s at line %d, column %d: %s\n", msg, line, col, context);
+        } else {
+            fprintf(stderr, "Error: %s at line %d, column %d\n", msg, line, col);
+        }
+    } else {
+        fprintf(stderr, "Error: %s\n", msg);
+    }
+    cleanup();
+    exit(1);
+}
+
 /* Create a new table */
-struct table *create_table(const char *name, const const char *out_dir) {
+struct table *create_table(const char *name, const char *out_dir) {
     struct table *table = malloc(sizeof(struct table));
     if (!table) {
-        fprintf(stderr, "Error: Memory allocation failed\n");
-        exit(1);
+        report_error("Memory allocation failed", 0, 0, NULL);
     }
     table->name = strdup(name);
+    if (!table->name) {
+        free(table);
+        report_error("Memory allocation failed", 0, 0, NULL);
+    }
     table->columns = NULL;
     table->next_id = 1;
     table->next = tables;
@@ -26,8 +45,7 @@ struct table *create_table(const char *name, const const char *out_dir) {
     snprintf(path, sizeof(path), "%s/%s.csv", out_dir ? out_dir : ".", name);
     table->file = fopen(path, "w");
     if (!table->file) {
-        fprintf(stderr, "Error: Cannot open %s\n", path);
-        exit(1);
+        report_error("Cannot open file", 0, 0, path);
     }
     return table;
 }
@@ -46,10 +64,13 @@ struct table *find_table(const char *name) {
 void add_column(struct table *table, const char *name) {
     struct column *col = malloc(sizeof(struct column));
     if (!col) {
-        fprintf(stderr, "Error: Memory allocation failed\n");
-        exit(1);
+        report_error("Memory allocation failed", 0, 0, NULL);
     }
     col->name = strdup(name);
+    if (!col->name) {
+        free(col);
+        report_error("Memory allocation failed", 0, 0, NULL);
+    }
     col->next = table->columns;
     table->columns = col;
 }
@@ -182,7 +203,9 @@ void free_tables(void) {
             free(col->name);
             free(col);
         }
-        fclose(tables->file);
+        if (tables->file) {
+            fclose(tables->file);
+        }
         free(tables->name);
         free(tables);
         tables = next;

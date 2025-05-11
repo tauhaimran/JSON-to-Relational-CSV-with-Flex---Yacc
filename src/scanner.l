@@ -1,43 +1,46 @@
 /* Tauha Imran, 22i-1239 */
 /* Hussain Ali, 22i-0902 */
 
+%option noyywrap
+%option yylineno
+%option bison-bridge
+%option bison-locations
+%option reentrant
+%option extra-type="void*"
+%option nodefault
+
 %{
 #include "parser.tab.h"
 #include <string.h>
 #include <stdlib.h>
+#include "ast.h"
+#include "csv.h"
 
-/* Track line and column for error reporting */
-int line = 1, column = 1;
+void report_error(const char *msg, int line, int col, const char *context);
+void cleanup(void);
+char *unescape_string(char *str);
 
-/* Update line and column based on input text */
-void update_position(char *text) {
-    for (char *c = text; *c; c++) {
-        if (*c == '\n') {
-            line++;
-            column = 1;
-        } else {
-            column++;
-        }
+#define YY_DECL int yylex( \
+    YYSTYPE *yylval_param, \
+    YYLTYPE *yylloc_param, \
+    yyscan_t yyscanner \
+)
+
+#define YY_USER_ACTION \
+    yylloc_param->first_line = yylloc_param->last_line; \
+    yylloc_param->first_column = yylloc_param->last_column; \
+    for (int i = 0; yytext[i]; ++i) { \
+        if (yytext[i] == '\n') { \
+            yylloc_param->last_line++; \
+            yylloc_param->last_column = 1; \
+        } else { \
+            yylloc_param->last_column++; \
+        } \
     }
-}
 
-/* Handle string unescaping (basic implementation) */
-char *unescape_string(char *str) {
-    char *result = strdup(str);
-    // Strip quotes
-    size_t len = strlen(result);
-    if (len >= 2) {
-        result[len - 1] = '\0';
-        memmove(result, result + 1, len - 1);
-    }
-    // TODO: Implement full escape handling (\n, \t, \uXXXX, etc.)
-    return result;
-}
+YY_DECL;
 %}
 
-%option noyywrap
-
-/* Regular expressions for JSON tokens */
 DIGIT       [0-9]
 DIGIT1_9    [1-9]
 SIGN        [+-]?
@@ -48,33 +51,86 @@ NUMBER      {INTEGER}{FRACTION}{EXPONENT}
 STRING      \"([^\"\\]|\\[\"\\\/bfnrt]|\\u[0-9a-fA-F]{4})*\"
 
 %%
-"{"         { update_position(yytext); return LBRACE; }
-"}"         { update_position(yytext); return RBRACE; }
-"["         { update_position(yytext); return LBRACKET; }
-"]"         { update_position(yytext); return RBRACKET; }
-":"         { update_position(yytext); return COLON; }
-","         { update_position(yytext); return COMMA; }
-"true"      { update_position(yytext); yylval.str = strdup("true"); return TRUE; }
-"false"     { update_position(yytext); yylval.str = strdup("false"); return FALSE; }
-"null"      { update_position(yytext); yylval.str = strdup("null"); return NULLVAL; }
+
+"{"         { return LBRACE; }
+"}"         { return RBRACE; }
+"["         { return LBRACKET; }
+"]"         { return RBRACKET; }
+":"         { return COLON; }
+","         { return COMMA; }
+"true"      { yylval_param->str = strdup("true"); return TRUE; }
+"false"     { yylval_param->str = strdup("false"); return FALSE; }
+"null"      { yylval_param->str = strdup("null"); return NULLVAL; }
 
 {STRING}    { 
-    update_position(yytext); 
-    yylval.str = unescape_string(yytext); 
+    yylval_param->str = unescape_string(yytext);
     return STRING; 
 }
 
+\"[^\"\\]*$ { 
+    report_error("Unterminated string", yylloc_param->first_line, 
+                yylloc_param->first_column, yytext);
+    return -1;
+}
+
+\\[^\"\\\/bfnrtu] { 
+    report_error("Invalid escape sequence", yylloc_param->first_line,
+                yylloc_param->first_column, yytext);
+    return -1;
+}
+
 {NUMBER}    { 
-    update_position(yytext); 
-    yylval.str = strdup(yytext); 
+    yylval_param->str = strdup(yytext);
     return NUMBER; 
 }
 
-[ \t\n\r]+  { update_position(yytext); /* Ignore whitespace */ }
+[ \t\n\r]+  { /* Ignore whitespace */ }
 
 .           { 
-    fprintf(stderr, "Error: Invalid character '%s' at line %d, column %d\n", 
-            yytext, line, column); 
-    exit(1); 
+    report_error("Invalid character", yylloc_param->first_line,
+                yylloc_param->first_column, yytext);
+    return -1;
 }
+
 %%
+
+char *unescape_string(char *str) {
+    /* Full unescape implementation with error checking */
+    char *out = malloc(strlen(str) - 1);  // Skip quotes
+    if (!out) {
+        report_error("Memory allocation failed", 0, 0, NULL);
+        return NULL;
+    }
+    
+    char *src = str + 1;  // Skip opening quote
+    char *dst = out;
+    size_t len = strlen(str) - 2;  // Exclude closing quote
+    
+    for (size_t i = 0; i < len; i++) {
+        if (*src == '\\') {
+            src++;
+            i++;
+            switch (*src) {
+                case '"':  *dst++ = '"';  break;
+                case '\\': *dst++ = '\\'; break;
+                case '/':  *dst++ = '/';  break;
+                case 'b':  *dst++ = '\b'; break;
+                case 'f':  *dst++ = '\f'; break;
+                case 'n':  *dst++ = '\n'; break;
+                case 'r':  *dst++ = '\r'; break;
+                case 't':  *dst++ = '\t'; break;
+                case 'u':  // Basic Unicode handling
+                    *dst++ = '?';  // Placeholder for actual implementation
+                    src += 4;
+                    i += 4;
+                    break;
+                default:   *dst++ = *src;  // Handle invalid escapes literally
+            }
+        } else {
+            *dst++ = *src;
+        }
+        src++;
+    }
+    *dst = '\0';
+    return out;
+}
